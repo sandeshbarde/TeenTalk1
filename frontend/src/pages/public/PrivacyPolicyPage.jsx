@@ -42,7 +42,7 @@ export const PrivacyPolicyPage = () => {
           </p>
           <ul className="list-disc pl-5 space-y-2 text-xs sm:text-sm text-slate-600">
             <li><strong>No Name Required:</strong> You can submit reports completely anonymously.</li>
-            <li><strong>8-Digit Private Code:</strong> You receive a randomly generated cryptographic tracking code to check updates, upload follow-up evidence, and communicate with authorized counselors.</li>
+            <li><strong>Private Tracking Token:</strong> You receive a cryptographically random token to check case updates and upload follow-up evidence.</li>
             <li><strong>Metadata Stripping:</strong> Uploaded evidence files (PNG, JPG, PDF) are cleansed of EXIF camera/GPS location metadata before being stored in private, access-restricted storage.</li>
             <li><strong>Private Streaming:</strong> Evidence files are NEVER accessible via public internet URLs. They require validated role tokens to inspect.</li>
           </ul>

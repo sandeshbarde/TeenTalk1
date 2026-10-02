@@ -1,4 +1,5 @@
 const store = require('../models/store');
+const { v4: uuidv4 } = require('uuid');
 const { logAuditEvent } = require('../middleware/audit');
 const { COMPLAINT_STATUS } = require('../config/constants');
 
@@ -107,8 +108,51 @@ const updateHRCase = async (hrUser, caseId, updates) => {
   return store.complaints[cIndex];
 };
 
+const addHRCaseNote = async (hrUser, caseId, noteText) => {
+  if (!noteText || !noteText.trim()) {
+    const error = new Error('Note text is required');
+    error.statusCode = 400;
+    error.code = 'VALIDATION_ERROR';
+    throw error;
+  }
+
+  const complaint = store.complaints.find((item) => item.id === caseId || item.tracking_code === caseId);
+  if (!complaint) {
+    const error = new Error('Case not found');
+    error.statusCode = 404;
+    error.code = 'CASE_NOT_FOUND';
+    throw error;
+  }
+  if (hrUser.role !== 'super_admin' && complaint.org_id !== hrUser.org_id) {
+    const error = new Error('Forbidden: Case belongs to another organization');
+    error.statusCode = 403;
+    error.code = 'ORG_MISMATCH';
+    throw error;
+  }
+
+  const note = {
+    id: uuidv4(),
+    complaint_id: complaint.id,
+    author_id: hrUser.id,
+    note_text: noteText.trim(),
+    is_private: true,
+    created_at: new Date().toISOString(),
+  };
+  store.case_notes.push(note);
+  await logAuditEvent({
+    actorId: hrUser.id,
+    action: 'HR_CASE_NOTE_ADDED',
+    resourceType: 'case_notes',
+    resourceId: note.id,
+    details: { complaint_id: complaint.id },
+  });
+
+  return { ...note, author_name: hrUser.full_name };
+};
+
 module.exports = {
   getHRCases,
   getHRCaseById,
   updateHRCase,
+  addHRCaseNote,
 };

@@ -10,5 +10,6 @@ router.use(requireAuth, requireRoles('hr', 'super_admin'));
 router.get('/cases', hrController.getCases);
 router.get('/cases/:id', hrController.getCaseById);
 router.patch('/cases/:id', hrController.updateCase);
+router.post('/cases/:id/notes', hrController.addCaseNote);
 
 module.exports = router;

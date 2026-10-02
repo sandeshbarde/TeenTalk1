@@ -1,8 +1,58 @@
-const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const env = require('../config/env');
 const store = require('../models/store');
+
+const getEvidenceEncryptionKey = () => {
+  if (env.EVIDENCE_ENCRYPTION_KEY) {
+    const configuredKey = /^[a-f0-9]{64}$/i.test(env.EVIDENCE_ENCRYPTION_KEY)
+      ? Buffer.from(env.EVIDENCE_ENCRYPTION_KEY, 'hex')
+      : Buffer.from(env.EVIDENCE_ENCRYPTION_KEY, 'base64');
+    if (configuredKey.length !== 32) {
+      throw new Error('EVIDENCE_ENCRYPTION_KEY must encode exactly 32 bytes (64 hex characters or base64)');
+    }
+    return configuredKey;
+  }
+
+  if (env.NODE_ENV === 'production') {
+    throw new Error('EVIDENCE_ENCRYPTION_KEY must be configured in production');
+  }
+  return crypto.createHash('sha256').update(`teentalk-local-evidence:${env.JWT_SECRET}`).digest();
+};
+
+const encryptEvidenceFile = async (sourcePath) => {
+  const key = getEvidenceEncryptionKey();
+  const iv = crypto.randomBytes(12);
+  const plaintext = await fs.promises.readFile(sourcePath);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const encrypted = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+  const encryptedPath = `${sourcePath}.enc`;
+
+  try {
+    await fs.promises.writeFile(encryptedPath, encrypted, { flag: 'wx' });
+    await fs.promises.unlink(sourcePath);
+  } catch (error) {
+    await fs.promises.unlink(encryptedPath).catch(() => {});
+    throw error;
+  }
+
+  return { file_path: encryptedPath, encryption_iv: iv.toString('base64'), encryption_auth_tag: cipher.getAuthTag().toString('base64') };
+};
+
+const decryptEvidenceFile = async (evidence) => {
+  if (!evidence.encryption_iv || !evidence.encryption_auth_tag) {
+    return fs.promises.readFile(evidence.file_path);
+  }
+  const decipher = crypto.createDecipheriv(
+    'aes-256-gcm',
+    getEvidenceEncryptionKey(),
+    Buffer.from(evidence.encryption_iv, 'base64')
+  );
+  decipher.setAuthTag(Buffer.from(evidence.encryption_auth_tag, 'base64'));
+  const encrypted = await fs.promises.readFile(evidence.file_path);
+  return Buffer.concat([decipher.update(encrypted), decipher.final()]);
+};
 
 /**
  * Storage Service for Sensitive Complaint Evidence
@@ -61,4 +111,6 @@ const verifyEvidenceAccess = (user, evidenceId) => {
 module.exports = {
   generateEvidenceAccessToken,
   verifyEvidenceAccess,
+  encryptEvidenceFile,
+  decryptEvidenceFile,
 };

@@ -41,7 +41,7 @@ export const HowItWorksPage = () => {
       points: [
         '100% anonymous complaint submission option',
         'Zero-knowledge evidence upload with AES-256 storage',
-        'Private 8-digit tracking code without needing phone or email',
+        'Private tracking token without needing phone or email',
       ],
       icon: Lock,
       color: 'bg-warmrose-100 text-warmrose-800 border-warmrose-200',
@@ -63,7 +63,7 @@ export const HowItWorksPage = () => {
   const faqs = [
     {
       q: 'Is TeenTalk really confidential for students and employees?',
-      a: 'Yes. TeenTalk allows you to file complaints completely anonymously. You are assigned a private 8-digit tracking code that you can use to check updates, communicate with authorized counselors, and upload supplementary evidence without ever revealing your personal identity.',
+      a: 'Yes. TeenTalk allows you to file complaints completely anonymously. You receive a private tracking token that you can use to check updates and upload supplementary evidence without revealing your personal identity.',
     },
     {
       q: 'How does the age personalization work without separate apps?',

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Search, AlertTriangle, CheckCircle2, Clock, Eye, Edit } from 'lucide-react';
+import { FileText, Search, Edit } from 'lucide-react';
 import apiClient from '../../services/apiClient';
 import { Card, CardHeader } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
@@ -10,6 +10,7 @@ import { TextareaField } from '../../components/forms/TextareaField';
 import { LoadingSpinner } from '../../components/feedback/LoadingSpinner';
 import { EmptyState } from '../../components/feedback/EmptyState';
 import { useToast } from '../../hooks/useToast';
+import { COMPLAINT_CATEGORIES } from '../../constants';
 
 export const HRDashboard = () => {
   const [cases, setCases] = useState([]);
@@ -17,12 +18,23 @@ export const HRDashboard = () => {
   const [selectedCase, setSelectedCase] = useState(null);
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
   const [updateData, setUpdateData] = useState({
     status: '',
     resolution_summary: '',
   });
 
   const { showToast } = useToast();
+
+  const filteredCases = cases.filter((c) => {
+    const query = searchTerm.trim().toLowerCase();
+    const matchesSearch = !query || [c.tracking_code, c.title, c.category]
+      .some((value) => String(value || '').toLowerCase().includes(query));
+    return matchesSearch && (!statusFilter || c.status === statusFilter) &&
+      (!categoryFilter || c.category === categoryFilter);
+  });
 
   const fetchCases = async () => {
     try {
@@ -88,6 +100,29 @@ export const HRDashboard = () => {
       {cases.length === 0 ? (
         <EmptyState icon={FileText} title="No active cases on record" description="No complaints are currently pending review." />
       ) : (
+        <>
+        <Card className="p-4 border-slate-200">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <label className="relative block">
+              <span className="sr-only">Search cases</span>
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input type="search" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search code, subject, or category" className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20" />
+            </label>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700">
+              <option value="">All statuses</option>
+              {['submitted', 'under_review', 'investigation_in_progress', 'hearing_scheduled', 'resolved', 'closed', 'escalated_to_ngo'].map((status) => (
+                <option key={status} value={status}>{status.replace(/_/g, ' ')}</option>
+              ))}
+            </select>
+            <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700">
+              <option value="">All categories</option>
+              {COMPLAINT_CATEGORIES.map((category) => (
+                <option key={category.value} value={category.value}>{category.label}</option>
+              ))}
+            </select>
+          </div>
+          <p className="mt-3 text-xs text-slate-500">Showing {filteredCases.length} of {cases.length} cases</p>
+        </Card>
         <Card className="p-0 overflow-hidden border-slate-200">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
@@ -102,7 +137,13 @@ export const HRDashboard = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {cases.map((c) => (
+                {filteredCases.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-10 text-center text-sm text-slate-500">
+                      No cases match these filters. Try changing the search or filter selections.
+                    </td>
+                  </tr>
+                ) : filteredCases.map((c) => (
                   <tr key={c.id} className="hover:bg-slate-50/60 transition-colors">
                     <td className="py-3.5 px-6 font-mono font-bold text-teal-700">{c.tracking_code}</td>
                     <td className="py-3.5 px-6">
@@ -135,6 +176,7 @@ export const HRDashboard = () => {
             </table>
           </div>
         </Card>
+        </>
       )}
 
       {/* Update Case Modal */}

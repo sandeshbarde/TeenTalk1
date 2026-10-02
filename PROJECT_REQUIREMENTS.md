@@ -15,7 +15,7 @@
 
 ### FR-03: Confidential & Anonymous Incident Reporting
 - **FR-03.1**: Users and non-registered visitors shall be capable of submitting confidential incident reports with an optional anonymous flag.
-- **FR-03.2**: Every report must generate a unique, tamper-resistant tracking code formatted as `TT-CASE-YYYY-XXXX`.
+- **FR-03.2**: Every report must generate a unique, cryptographically random bearer tracking token formatted as `TT-CASE-YYYY-<32 hexadecimal characters>`.
 - **FR-03.3**: The complainant must explicitly acknowledge statutory consent before filing is processed.
 - **FR-03.4**: File attachments (evidence) must be validated for allowed MIME types (PDF, PNG, JPG, WEBP) and constrained to a maximum size of 10MB.
 - **FR-03.5**: Evidence files must be stored in private storage and strictly restricted from direct public URL access.

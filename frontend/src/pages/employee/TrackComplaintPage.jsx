@@ -82,7 +82,7 @@ export const TrackComplaintPage = () => {
         >
           <div className="flex-1">
             <InputField
-              placeholder="e.g. TT-CASE-2026-8941"
+              placeholder="e.g. TT-CASE-2026-00112233445566778899AABBCCDDEEFF"
               value={trackingCode}
               onChange={(e) => setTrackingCode(e.target.value)}
               required

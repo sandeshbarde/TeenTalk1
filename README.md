@@ -23,8 +23,8 @@ TeenTalk unites these stakeholders into an integrated, secure ecosystem governed
 
 - **Multi-Tiered Role-Based Access Control (10 Distinct Roles)**: Dedicated interfaces and backend permission checks for *Teen, Adult/Parent, Employee, School Admin, HR, NGO, Counselor, Content Manager, Super Admin, and Auditor*.
 - **Adolescent Safety Curriculum**: Modular courses covering Cyber Safety, Safe Touch Boundaries, Anti-Bullying Upstander Strategies, Emotional Wellbeing, and POSH Awareness.
-- **Confidential & Anonymous Incident Reporting**: Tokenized case tracking (`TT-CASE-YYYY-XXXX`) allowing victims or upstanders to file reports with or without revealing their personal identity.
-- **Encrypted Evidence Vault**: Private multi-part upload pipeline for PDF, PNG, JPG, and WEBP evidence with restricted tokenized access (no public URLs).
+- **Confidential & Anonymous Incident Reporting**: Anonymous case lookup uses a 128-bit tracking token; only the token or an authorized account can access the case.
+- **Encrypted Evidence Vault**: PDF, PNG, JPG, and WEBP files are checked against their file signatures and encrypted at rest with AES-256-GCM before private, role-checked downloads.
 - **Crisis-Aware Educational AI Safety Companion**: Empathy-first AI assistant equipped with rule-based emergency triggers (escalating crisis and self-harm keywords directly to national helplines `1098` and `112`).
 - **Emotional Wellness & Mood Journaling**: 5-point rating check-ins, emotion tags, private notes, and weekly mood trend analytics powered by Recharts.
 - **Interactive Quizzes & Cryptographic Certificates**: Knowledge evaluation with instant pedagogical feedback and SHA-256 verified downloadable certificates.
@@ -122,6 +122,7 @@ npm install
 cp .env.example .env
 ```
 *(The backend runs out-of-the-box in local seeded store mode. To connect to Supabase Cloud, add your `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` to `backend/.env`).*
+*(Copy `backend/.env.example` to `backend/.env` for local setup. Before deployment, configure a unique `JWT_SECRET` and a 32-byte `EVIDENCE_ENCRYPTION_KEY`; never commit `.env` or production credentials.)*
 
 ### 2. Set Up Frontend
 ```bash
@@ -148,6 +149,8 @@ npm run dev
 
 ## 7. Pre-Seeded Test Accounts
 
+> **Deployment note:** The current service layer uses the seeded in-memory store in `backend/models/store.js`; application data resets when the backend restarts. Supabase credentials alone do not make all modules persistent. Before using real users or deploying, complete and verify the database repository integration, email-based password recovery, and production secret/storage setup.
+
 You can log in to test all 10 roles using the password **`Password123!`**, or click the **One-Click Role Evaluator** buttons directly on the Login page:
 
 | Role | Email | Dashboard Route |
@@ -167,7 +170,7 @@ You can log in to test all 10 roles using the password **`Password123!`**, or cl
 
 ## 8. Running Automated Verification Tests
 
-TeenTalk includes a self-contained test runner verifying all 12 platform criteria (`TT-AUTH-01` through `TT-RESP-01`):
+TeenTalk includes a self-contained test runner with 18 checks covering authentication, role access, case tracking, evidence security, notes, learning, and safety flows:
 
 ```bash
 cd backend
@@ -181,8 +184,14 @@ npm test
 - `TT-TEEN-01`: Teen completes a safety module -> **PASSED**
 - `TT-SCHOOL-01`: School Admin views students -> **PASSED**
 - `TT-COMP-01`: Employee submits confidential complaint -> **PASSED**
+- `TT-COMP-01B`: Public case lookup requires the tracking token -> **PASSED**
 - `TT-COMP-02`: Unsupported evidence file (.exe) is rejected -> **PASSED**
+- `TT-COMP-03`: Evidence upload requires an authorized account or tracking code -> **PASSED**
+- `TT-COMP-04`: Evidence encryption and authorized download -> **PASSED**
 - `TT-HR-01`: HR changes case status -> **PASSED**
+- `TT-HR-02`: HR records an internal case note -> **PASSED**
+- `TT-COUNSELOR-01`: Counselor records a private note for an authorized case -> **PASSED**
+- `TT-COUNSELOR-02`: Counselor notes respect organization access -> **PASSED**
 - `TT-AI-01`: User asks crisis/unsafe question -> **PASSED**
 - `TT-QUIZ-01`: User submits quiz evaluation -> **PASSED**
 - `TT-CERT-01`: User without passing score requests certificate -> **PASSED**
@@ -193,9 +202,10 @@ npm test
 ## 9. Deployment Instructions
 
 ### Backend (Render / Railway / Cloud Run)
-1. Configure environment variables (`PORT=5000`, `JWT_SECRET`, `CORS_ORIGIN=https://your-frontend-domain.com`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`).
-2. Build step: `npm install`
-3. Start command: `node server.js`
+1. For real users, first replace the in-memory store with a fully integrated persistent database and move encrypted evidence to durable private object storage. The current configuration alone is not production persistence.
+2. Configure `PORT`, a unique `JWT_SECRET` (at least 32 characters), a 32-byte `EVIDENCE_ENCRYPTION_KEY`, `CORS_ORIGIN`, and Supabase credentials if the persistent adapter is configured.
+3. Build step: `npm install`
+4. Start command: `node server.js`
 
 ### Frontend (Vercel / Netlify / Firebase Hosting)
 1. Set build command: `npm run build`

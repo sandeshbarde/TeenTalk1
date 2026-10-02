@@ -103,8 +103,8 @@ export const CaseDetailPage = () => {
         : `/counselor/notes`;
 
       const payload = user?.role === 'hr'
-        ? { note: noteContent }
-        : { complaint_id: caseData.id, notes: noteContent, action_plan: 'Ongoing counseling follow-up' };
+        ? { note_text: noteContent.trim() }
+        : { complaint_id: caseData.id, note_text: noteContent.trim(), is_private: true };
 
       const res = await apiClient.post(endpoint, payload);
       if (res.success) {
@@ -122,7 +122,7 @@ export const CaseDetailPage = () => {
   const handleUpdateStatus = async (newStatus) => {
     setUpdatingStatus(true);
     try {
-      const res = await apiClient.patch(`/hr/cases/${caseData.id}/status`, { status: newStatus });
+      const res = await apiClient.patch(`/hr/cases/${caseData.id}`, { status: newStatus });
       if (res.success) {
         showToast(`Case status updated to "${newStatus}"`, 'success');
         setStatusUpdate(newStatus);
@@ -325,7 +325,7 @@ export const CaseDetailPage = () => {
                         {new Date(note.created_at).toLocaleDateString()}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-700 leading-relaxed">{note.notes}</p>
+                    <p className="text-xs text-slate-700 leading-relaxed">{note.note_text || note.notes}</p>
                   </div>
                 ))}
               </div>

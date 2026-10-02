@@ -1,7 +1,6 @@
 const fs = require('fs');
-const path = require('path');
 const complaintService = require('../services/complaintService');
-const { verifyEvidenceAccess } = require('../services/storageService');
+const { verifyEvidenceAccess, decryptEvidenceFile } = require('../services/storageService');
 const { successResponse, errorResponse } = require('../utils/response');
 
 const fileComplaint = async (req, res, next) => {
@@ -26,12 +25,23 @@ const uploadEvidence = async (req, res, next) => {
 
     const complaintId = req.body.complaint_id || req.params.id;
     if (!complaintId) {
+      if (req.file?.path && fs.existsSync(req.file.path)) {
+        await fs.promises.unlink(req.file.path).catch(() => {});
+      }
       return errorResponse(res, 'complaint_id is required to associate evidence', 400, 'COMPLAINT_ID_MISSING');
     }
 
-    const evidence = await complaintService.uploadEvidence(req.user || null, complaintId, req.file);
+    const evidence = await complaintService.uploadEvidence(
+      req.user || null,
+      complaintId,
+      req.body.tracking_code,
+      req.file
+    );
     return successResponse(res, evidence, 'Evidence securely uploaded and attached', 201);
   } catch (err) {
+    if (req.file?.path && fs.existsSync(req.file.path)) {
+      await fs.promises.unlink(req.file.path).catch(() => {});
+    }
     next(err);
   }
 };
@@ -63,10 +73,11 @@ const downloadEvidence = async (req, res, next) => {
       return errorResponse(res, 'Physical evidence file not found on disk', 404, 'FILE_NOT_FOUND');
     }
 
+    const contents = await decryptEvidenceFile(evidence);
     res.setHeader('Content-Type', evidence.file_type);
-    res.setHeader('Content-Disposition', `attachment; filename="${evidence.file_name}"`);
-    const fileStream = fs.createReadStream(evidence.file_path);
-    fileStream.pipe(res);
+    res.setHeader('Content-Length', contents.length);
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(evidence.file_name)}`);
+    return res.send(contents);
   } catch (err) {
     next(err);
   }

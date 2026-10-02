@@ -2,5 +2,7 @@ node_modules
 .env
 uploads/evidence/*
 !uploads/evidence/.gitkeep
+backend/uploads/evidence/*
+!backend/uploads/evidence/.gitkeep
 .DS_Store
 *.log

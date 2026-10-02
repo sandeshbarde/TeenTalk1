@@ -132,7 +132,7 @@ export const GetSupportPage = () => {
       {/* Quick Lookup of Existing Complaint */}
       <div className="max-w-2xl mx-auto">
         <Card className="p-6 text-center space-y-3 bg-slate-50 border-slate-200">
-          <h4 className="text-sm font-bold text-slate-900">Already have an 8-digit tracking code?</h4>
+          <h4 className="text-sm font-bold text-slate-900">Already have your confidential tracking code?</h4>
           <p className="text-xs text-slate-600">
             Check live case updates, view counselor responses, or securely attach additional evidence.
           </p>

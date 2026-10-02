@@ -47,7 +47,8 @@ export async function apiRequest(endpoint, options = {}) {
 
     return data;
   } catch (err) {
-    console.error(`API Error on [${options.method || 'GET'} ${endpoint}]:`, err);
+    const safeEndpoint = endpoint.replace(/TT-CASE-\d{4}-[A-F0-9]{32}/gi, '[tracking-token]');
+    console.error(`API Error on [${options.method || 'GET'} ${safeEndpoint}]:`, err);
     throw err;
   }
 }

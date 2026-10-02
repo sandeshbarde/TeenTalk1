@@ -33,6 +33,15 @@ const addCaseNote = async (counselorUser, { complaint_id, note_text, is_private 
     throw error;
   }
 
+  const canHandleCase = counselorUser.role === 'super_admin' ||
+    complaint.org_id === counselorUser.org_id || complaint.assigned_to === counselorUser.id;
+  if (!canHandleCase) {
+    const error = new Error('You are not authorized to add notes to this case');
+    error.statusCode = 403;
+    error.code = 'CASE_FORBIDDEN';
+    throw error;
+  }
+
   const newNote = {
     id: uuidv4(),
     complaint_id: complaint.id,

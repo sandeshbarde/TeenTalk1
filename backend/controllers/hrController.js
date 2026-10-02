@@ -28,8 +28,18 @@ const updateCase = async (req, res, next) => {
   }
 };
 
+const addCaseNote = async (req, res, next) => {
+  try {
+    const note = await hrService.addHRCaseNote(req.user, req.params.id, req.body.note_text);
+    return successResponse(res, note, 'Internal case note recorded successfully', 201);
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getCases,
   getCaseById,
   updateCase,
+  addCaseNote,
 };

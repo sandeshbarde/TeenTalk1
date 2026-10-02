@@ -47,7 +47,8 @@ app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
     const duration = Date.now() - start;
-    console.log(`[HTTP] ${req.method} ${req.originalUrl} -> ${res.statusCode} (${duration}ms)`);
+    const safeUrl = req.originalUrl.replace(/TT-CASE-\d{4}-[A-F0-9]{32}/gi, '[tracking-token]');
+    console.log(`[HTTP] ${req.method} ${safeUrl} -> ${res.statusCode} (${duration}ms)`);
   });
   next();
 });

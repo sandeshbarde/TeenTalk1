@@ -22,30 +22,33 @@ export const FileComplaintPage = () => {
   });
 
   const [evidenceFile, setEvidenceFile] = useState(null);
+  const [isDraggingEvidence, setIsDraggingEvidence] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submittedCase, setSubmittedCase] = useState(null);
   const { showToast } = useToast();
   const navigate = useNavigate();
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
+  const handleEvidenceFile = (file) => {
     if (!file) return;
 
     const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
       showToast('Unsupported file type. Please upload PDF, PNG, JPG, or WEBP only.', 'error');
-      e.target.value = '';
       return;
     }
 
     if (file.size > 10 * 1024 * 1024) {
       showToast('File exceeds the 10MB size limit.', 'error');
-      e.target.value = '';
       return;
     }
 
     setEvidenceFile(file);
     showToast(`Attached: ${file.name}`, 'info');
+  };
+
+  const handleFileChange = (e) => {
+    handleEvidenceFile(e.target.files?.[0]);
+    e.target.value = '';
   };
 
   const handleSubmit = async (e) => {
@@ -65,16 +68,24 @@ export const FileComplaintPage = () => {
 
       const complaint = res.data;
 
+      // Keep the case tracking code available even if the optional upload fails.
+      setSubmittedCase(complaint);
+
       // 2. Upload evidence if attached
       if (evidenceFile) {
         const uploadData = new FormData();
         uploadData.append('complaint_id', complaint.id);
+        uploadData.append('tracking_code', complaint.tracking_code);
         uploadData.append('evidence', evidenceFile);
 
-        await apiClient.post('/complaints/upload-evidence', uploadData);
+        try {
+          await apiClient.post('/complaints/upload-evidence', uploadData);
+        } catch (uploadError) {
+          showToast(`Complaint saved, but evidence upload failed: ${uploadError.message}`, 'error');
+          return;
+        }
       }
 
-      setSubmittedCase(complaint);
       showToast('Incident filed successfully. Please store your tracking code safely!', 'success');
     } catch (err) {
       showToast(err.message || 'Submission failed', 'error');
@@ -219,10 +230,22 @@ export const FileComplaintPage = () => {
             <label className="text-sm font-semibold text-slate-700 block">
               Attach Supporting Evidence (Optional)
             </label>
-            <div className="border-2 border-dashed border-slate-300 hover:border-teal-500 rounded-2xl p-6 text-center transition-colors bg-slate-50/50">
+            <div
+              onDragEnter={(e) => { e.preventDefault(); setIsDraggingEvidence(true); }}
+              onDragOver={(e) => e.preventDefault()}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget)) setIsDraggingEvidence(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDraggingEvidence(false);
+                handleEvidenceFile(e.dataTransfer.files?.[0]);
+              }}
+              className={`border-2 border-dashed rounded-2xl p-6 text-center transition-colors ${isDraggingEvidence ? 'border-teal-500 bg-teal-50' : 'border-slate-300 hover:border-teal-500 bg-slate-50/50'}`}
+            >
               <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
               <p className="text-xs font-semibold text-slate-700">
-                {evidenceFile ? evidenceFile.name : 'Upload PDF, PNG, JPG, or WEBP (Max 10MB)'}
+                {evidenceFile ? evidenceFile.name : 'Drag and drop a file here, or choose a file (Max 10MB)'}
               </p>
               <p className="text-[11px] text-slate-400 mt-1">
                 Screenshots of messages, emails, photos, or incident logs.

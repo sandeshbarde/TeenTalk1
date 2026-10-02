@@ -101,6 +101,7 @@ const runAllTests = async () => {
   let adminToken = '';
   let employeeToken = '';
   let hrToken = '';
+  let counselorToken = '';
   let schoolToken = '';
 
   // TT-AUTH-01: Register with valid details
@@ -161,6 +162,13 @@ const runAllTests = async () => {
     body: { email: 'hr@teentalk.org', password: 'Password123!' },
   });
   hrToken = hrLogin.body.data.token;
+
+  const counselorLogin = await request({
+    method: 'POST',
+    path: '/api/auth/login',
+    body: { email: 'counselor@teentalk.org', password: 'Password123!' },
+  });
+  counselorToken = counselorLogin.body.data.token;
 
   const empLogin = await request({
     method: 'POST',
@@ -247,6 +255,16 @@ const runAllTests = async () => {
     filedComplaint = res.body.data;
   });
 
+  // TT-COMP-01B: Public case lookups must use the confidential tracking token, not the UUID
+  await runTest('TT-COMP-01B', 'Public case lookup requires the tracking token', async () => {
+    const byId = await request({ method: 'GET', path: `/api/complaints/${filedComplaint.id}` });
+    assert(byId.status === 403, `Expected ID lookup to be denied, got ${byId.status}`);
+    assert(byId.body.error.code === 'TRACKING_CODE_REQUIRED', 'Expected TRACKING_CODE_REQUIRED error');
+
+    const byTrackingCode = await request({ method: 'GET', path: `/api/complaints/${filedComplaint.tracking_code}` });
+    assert(byTrackingCode.status === 200, `Expected tracking lookup status 200, got ${byTrackingCode.status}`);
+  });
+
   // TT-COMP-02: Unsupported evidence file is rejected
   await runTest('TT-COMP-02', 'Unsupported evidence file (.exe) is rejected', async () => {
     const boundary = '----WebKitFormBoundaryABC123';
@@ -281,6 +299,84 @@ const runAllTests = async () => {
     assert(res.body.error.code === 'INVALID_FILE_TYPE', 'Expected INVALID_FILE_TYPE code');
   });
 
+  // TT-COMP-03: A complaint ID alone must not authorize anonymous evidence uploads
+  await runTest('TT-COMP-03', 'Evidence upload requires an authorized account or tracking code', async () => {
+    const boundary = '----TeenTalkEvidenceBoundaryNoCode';
+    const pdf = '%PDF-1.4\nprivate evidence\n%%EOF';
+    const postData = [
+      `--${boundary}`,
+      `Content-Disposition: form-data; name="complaint_id"`,
+      '',
+      filedComplaint.id,
+      `--${boundary}`,
+      `Content-Disposition: form-data; name="evidence"; filename="evidence.pdf"`,
+      'Content-Type: application/pdf',
+      '',
+      pdf,
+      `--${boundary}--`,
+    ].join('\r\n');
+    const res = await request({
+      method: 'POST',
+      path: '/api/complaints/upload-evidence',
+      headers: {
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Length': Buffer.byteLength(postData),
+      },
+      body: postData,
+      isMultipart: true,
+    });
+    assert(res.status === 403, `Expected status 403, got ${res.status}`);
+    assert(res.body.error.code === 'EVIDENCE_FORBIDDEN', 'Expected EVIDENCE_FORBIDDEN error');
+  });
+
+  // TT-COMP-04: Evidence is encrypted at rest and can be downloaded by an authorized handler
+  await runTest('TT-COMP-04', 'Evidence encryption and authorized download', async () => {
+    const boundary = '----TeenTalkEvidenceBoundaryWithCode';
+    const pdf = '%PDF-1.4\nprivate evidence\n%%EOF';
+    const postData = [
+      `--${boundary}`,
+      `Content-Disposition: form-data; name="complaint_id"`,
+      '',
+      filedComplaint.id,
+      `--${boundary}`,
+      `Content-Disposition: form-data; name="tracking_code"`,
+      '',
+      filedComplaint.tracking_code,
+      `--${boundary}`,
+      `Content-Disposition: form-data; name="evidence"; filename="evidence.pdf"`,
+      'Content-Type: application/pdf',
+      '',
+      pdf,
+      `--${boundary}--`,
+    ].join('\r\n');
+    const uploadRes = await request({
+      method: 'POST',
+      path: '/api/complaints/upload-evidence',
+      headers: {
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Length': Buffer.byteLength(postData),
+      },
+      body: postData,
+      isMultipart: true,
+    });
+    assert(uploadRes.status === 201, `Expected status 201, got ${uploadRes.status}`);
+
+    const store = require('../models/store');
+    const evidence = store.evidence.find((item) => item.id === uploadRes.body.data.id);
+    assert(evidence && evidence.encryption_iv && evidence.encryption_auth_tag, 'Encryption metadata should be recorded');
+    assert(fs.existsSync(evidence.file_path) && evidence.file_path.endsWith('.enc'), 'Only encrypted evidence should remain on disk');
+    assert(fs.readFileSync(evidence.file_path).toString() !== pdf, 'Stored file contents must be ciphertext');
+
+    const downloadRes = await request({
+      method: 'GET',
+      path: `/api/complaints/${filedComplaint.id}/evidence/${evidence.id}/download`,
+      headers: { Authorization: `Bearer ${hrToken}` },
+    });
+    assert(downloadRes.status === 200, `Expected status 200, got ${downloadRes.status}`);
+    assert(downloadRes.body === pdf, 'Authorized download should decrypt the original file');
+    if (fs.existsSync(evidence.file_path)) fs.unlinkSync(evidence.file_path);
+  });
+
   // TT-HR-01: HR changes case status
   await runTest('TT-HR-01', 'HR changes case status', async () => {
     const res = await request({
@@ -298,6 +394,80 @@ const runAllTests = async () => {
     assert(res.status === 200, `Expected status 200, got ${res.status}`);
     assert(res.body.success === true, 'Expected success true');
     assert(res.body.data.status === 'investigation_in_progress', 'Expected status to be investigation_in_progress');
+  });
+
+  // TT-HR-02: HR records an internal case note
+  await runTest('TT-HR-02', 'HR records an internal case note', async () => {
+    const noteRes = await request({
+      method: 'POST',
+      path: `/api/hr/cases/${filedComplaint.id}/notes`,
+      headers: { Authorization: `Bearer ${hrToken}` },
+      body: { note_text: 'Committee evidence review scheduled.' },
+    });
+    assert(noteRes.status === 201, `Expected status 201, got ${noteRes.status}`);
+    assert(noteRes.body.data.is_private === true, 'HR notes must remain private');
+
+    const caseRes = await request({
+      method: 'GET',
+      path: `/api/complaints/${filedComplaint.id}`,
+      headers: { Authorization: `Bearer ${hrToken}` },
+    });
+    assert(caseRes.status === 200, `Expected status 200, got ${caseRes.status}`);
+    assert(caseRes.body.data.case_notes.some((note) => note.note_text === 'Committee evidence review scheduled.'), 'Internal note should be visible to the authorized HR handler');
+  });
+
+  // TT-COUNSELOR-01: Counselor can record and read a note in their organization
+  await runTest('TT-COUNSELOR-01', 'Counselor records a private note for an authorized case', async () => {
+    const complaintRes = await request({
+      method: 'POST',
+      path: '/api/complaints/file',
+      body: {
+        title: 'Support request for wellbeing follow-up',
+        category: 'mental_distress',
+        description: 'The student requested a confidential wellbeing check-in and ongoing support.',
+        incident_date: '2026-10-01',
+        is_anonymous: true,
+        consent_confirmed: true,
+        org_id: '33333333-3333-3333-3333-333333333333',
+      },
+    });
+    assert(complaintRes.status === 201, 'Expected counselor support case to be created');
+
+    const noteRes = await request({
+      method: 'POST',
+      path: '/api/counselor/notes',
+      headers: { Authorization: `Bearer ${counselorToken}` },
+      body: {
+        complaint_id: complaintRes.body.data.id,
+        note_text: 'Private support plan agreed with the student.',
+        is_private: true,
+      },
+    });
+    assert(noteRes.status === 201, `Expected status 201, got ${noteRes.status}`);
+
+    const caseRes = await request({
+      method: 'GET',
+      path: `/api/complaints/${complaintRes.body.data.id}`,
+      headers: { Authorization: `Bearer ${counselorToken}` },
+    });
+    assert(caseRes.status === 200, `Expected status 200, got ${caseRes.status}`);
+    assert(caseRes.body.data.case_notes.some((note) => note.note_text === 'Private support plan agreed with the student.'), 'Authorized counselor should be able to read the private note');
+  });
+
+  // TT-COUNSELOR-02: Counselors cannot write across organizations
+  await runTest('TT-COUNSELOR-02', 'Counselor notes respect organization access', async () => {
+    const res = await request({
+      method: 'POST',
+      path: '/api/counselor/notes',
+      headers: { Authorization: `Bearer ${counselorToken}` },
+      body: {
+        complaint_id: filedComplaint.id,
+        note_text: 'Unauthorized cross-organization note attempt.',
+        is_private: true,
+      },
+    });
+    assert(res.status === 403, `Expected status 403, got ${res.status}`);
+    assert(res.body.error.code === 'CASE_FORBIDDEN', 'Expected CASE_FORBIDDEN error');
   });
 
   // TT-AI-01: User asks an unsafe question

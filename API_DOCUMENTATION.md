@@ -159,7 +159,7 @@ Submits a confidential report.
   ```json
   {
     "success": true,
-    "data": { "id": "uuid", "tracking_code": "TT-CASE-2026-8941", "status": "submitted" }
+    "data": { "id": "uuid", "tracking_code": "TT-CASE-2026-<32 hex characters>", "status": "submitted" }
   }
   ```
 
@@ -167,7 +167,8 @@ Submits a confidential report.
 Attaches PDF or image evidence to a case record.
 - **Access**: Public / Optional Authenticated
 - **Content-Type**: `multipart/form-data`
-- **Fields**: `complaint_id`, `evidence` (file)
+- **Fields**: `complaint_id`, `tracking_code` (required for anonymous uploads), `evidence` (file)
+- Evidence file signatures are validated and files are encrypted at rest with AES-256-GCM. Production deployments must configure `EVIDENCE_ENCRYPTION_KEY`.
 
 ### `GET /complaints/my`
 Retrieves all non-anonymous complaints submitted by the caller.
@@ -196,6 +197,11 @@ Retrieves comprehensive investigation history, evidence items, and case notes.
 ### `PATCH /hr/cases/:id`
 Updates investigation milestone (`investigation_in_progress`, `hearing_scheduled`, `resolved`), severity, or resolution summary.
 - **Access**: Authenticated (`hr`, `super_admin`)
+
+### `POST /hr/cases/:id/notes`
+Adds a private committee note to a case in the HR user's organization.
+- **Access**: Authenticated (`hr`, `super_admin`)
+- **Body**: `{ "note_text": "Internal committee note" }`
 
 ---
 
